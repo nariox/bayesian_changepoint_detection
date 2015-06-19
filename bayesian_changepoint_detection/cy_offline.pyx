@@ -20,12 +20,10 @@ def offline_changepoint_detection(np.ndarray[double, ndim=1] data,
 
     Keyword arguments:
     data -- the time series data
-    prior_func -- a function given the likelihood of a changepoint given 
-the
-                  distance to the last one
-    observation_log_likelihood_function -- a function giving the log 
-likelihood
-                                           of a data part
+    prior_func -- a function given the likelihood of a changepoint given
+                  the distance to the last one
+    observation_log_likelihood_function -- a function giving the log
+                  likelihood of a data part
     P -- the likelihoods if pre-computed
     """
 
@@ -46,15 +44,13 @@ likelihood
         else:
             G[t] = np.logaddexp(G[t-1], g[t])
 
-    P[n-1, n-1], table = cy_gaussian_obs_log_likelihood(data, n-1, n, 
-table)
+    P[n-1, n-1], table = cy_gaussian_obs_log_likelihood(data,n-1,n,table)
     Q[n-1] = P[n-1, n-1]
 
     for t in reversed(range(n-1)):
         P_next_cp = -np.inf  # == -log(0)
         for s in range(t, n-1):
-            P[t, s], table = cy_gaussian_obs_log_likelihood(data, t, s + 
-1, table)
+            P[t, s], table = cy_gaussian_obs_log_likelihood(data,t,s+1,table)
 
             # compute recursion
             summand = P[t, s] + Q[s + 1] + g[s + 1 - t]
@@ -65,8 +61,7 @@ table)
             if summand - P_next_cp < truncate:
                 break
 
-        P[t, n-1], table = cy_gaussian_obs_log_likelihood(data, t, n, 
-table)
+        P[t, n-1], table = cy_gaussian_obs_log_likelihood(data,t,n,table)
 
         # (1 - G) is numerical stable until G becomes numerically 1
         if G[n-1-t] < -1e-15:  # exp(-1e-15) = .99999...
@@ -85,8 +80,7 @@ table)
     cdef int j
     for j in range(1, n-1):
         for t in range(j, n-1):
-            tmp_cond = Pcp[j-1, j-1:t] + P[j:t+1, t] + Q[t + 1] + 
-g[0:t-j+1] - Q[j:t+1]
+            tmp_cond = Pcp[j-1, j-1:t] + P[j:t+1, t] + Q[t + 1] + g[0:t-j+1] - Q[j:t+1]
             Pcp[j, t] = logsumexp(tmp_cond.astype(np.float32))
             if np.isnan(Pcp[j, t]):
                 Pcp[j, t] = -np.inf
@@ -94,9 +88,8 @@ g[0:t-j+1] - Q[j:t+1]
     return Q, P, Pcp
 
 #@dynamic_programming
-cdef cy_gaussian_obs_log_likelihood(np.ndarray[double, ndim=1] data, int 
-t, int s,
-                                np.ndarray[double, ndim=2] table):
+cdef cy_gaussian_obs_log_likelihood(np.ndarray[double, ndim=1] data, int
+t, int s, np.ndarray[double, ndim=2] table):
 
     if not np.isnan(table[t, s]):
         return table[t, s], table
@@ -107,16 +100,13 @@ t, int s,
     cdef double muT = (n * mean) / (1 + n)
     cdef int nuT = 1 + n
     cdef double alphaT = 1 + n / 2
-    cdef double betaT = 1 + 0.5 * ((data[t:s] - mean) ** 2).sum(0) + 
-((n)/(1 + n)) * (mean**2 / 2)
+    cdef double betaT = 1 + 0.5 * ((data[t:s] - mean) ** 2).sum(0) + ((n)/(1 + n)) * (mean**2 / 2)
     scale = (betaT*(nuT + 1))/(alphaT * nuT)
 
     # splitting the PDF of the student distribution up is /much/ faster.
     # (~ factor 20) using sum over for loop is even more worthwhile
-    cdef double prob = np.sum(np.log(1 + (data[t:s] - muT)**2/(nuT * 
-scale)))
-    cdef double lgA = gammaln((nuT + 1) / 2) - np.log(np.sqrt(np.pi * 
-nuT * scale)) - gammaln(nuT/2)
+    cdef double prob = np.sum(np.log(1 + (data[t:s] - muT)**2/(nuT * scale)))
+    cdef double lgA = gammaln((nuT + 1) / 2) - np.log(np.sqrt(np.pi * nuT * scale)) - gammaln(nuT/2)
 
     return np.sum(n * lgA - (nuT + 1)/2 * prob), table
 
